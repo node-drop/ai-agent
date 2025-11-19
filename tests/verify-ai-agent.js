@@ -3,7 +3,7 @@
  * Tests the node structure and basic functionality
  */
 
-const AIAgentNode = require('./nodes/AIAgent.node.js');
+const AIAgentNode = require('../nodes/AIAgent.node.js');
 
 console.log('=== AI Agent Node Verification ===\n');
 

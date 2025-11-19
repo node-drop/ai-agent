@@ -11,12 +11,12 @@
  * - Save conversation to Memory node after completion
  */
 
-const AIAgentNode = require('./nodes/AIAgent.node.js');
+const AIAgentNode = require('../nodes/AIAgent.node.js');
 const {
   AgentStateManager,
   ToolCallTracker,
   AgentErrorHandler,
-} = require('./utils/agentLoopUtilities');
+} = require('../utils/agentLoopUtilities');
 
 console.log('='.repeat(80));
 console.log('AI Agent Loop Execution Verification (Task 7.3)');

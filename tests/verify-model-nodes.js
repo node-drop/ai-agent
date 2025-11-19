@@ -3,8 +3,8 @@
  * Tests that the OpenAI and Anthropic model nodes are properly structured
  */
 
-const OpenAIModelNode = require('./nodes/OpenAIModel.node.js');
-const AnthropicModelNode = require('./nodes/AnthropicModel.node.js');
+const OpenAIModelNode = require('../nodes/OpenAIModel.node.js');
+const AnthropicModelNode = require('../nodes/AnthropicModel.node.js');
 
 console.log('🔍 Verifying Model Nodes Implementation...\n');
 

@@ -8,7 +8,7 @@ const {
   convertFromOpenAIFormat,
   convertToAnthropicFormat,
   convertFromAnthropicFormat,
-} = require('./utils/toolFormatConverters');
+} = require('../utils/toolFormatConverters');
 
 console.log('🔍 Verifying Tool Format Converters...\n');
 

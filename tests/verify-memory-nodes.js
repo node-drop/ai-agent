@@ -3,9 +3,9 @@
  * Tests Buffer Memory, Window Memory, and Redis Memory implementations
  */
 
-const BufferMemory = require('./nodes/BufferMemory.node.js');
-const WindowMemory = require('./nodes/WindowMemory.node.js');
-const RedisMemory = require('./nodes/RedisMemory.node.js');
+const BufferMemory = require('../nodes/BufferMemory.node.js');
+const WindowMemory = require('../nodes/WindowMemory.node.js');
+const RedisMemory = require('../nodes/RedisMemory.node.js');
 
 // Mock logger
 const mockLogger = {

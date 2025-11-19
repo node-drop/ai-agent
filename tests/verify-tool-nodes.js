@@ -3,9 +3,9 @@
  * Tests that all tool nodes are properly implemented and functional
  */
 
-const CalculatorTool = require('./nodes/CalculatorTool.node.js');
-const HttpRequestTool = require('./nodes/HttpRequestTool.node.js');
-const KnowledgeBaseTool = require('./nodes/KnowledgeBaseTool.node.js');
+const CalculatorTool = require('../nodes/CalculatorTool.node.js');
+const HttpRequestTool = require('../nodes/HttpRequestTool.node.js');
+const KnowledgeBaseTool = require('../nodes/KnowledgeBaseTool.node.js');
 
 // Mock logger
 const mockLogger = {
