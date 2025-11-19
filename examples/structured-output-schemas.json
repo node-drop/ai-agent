@@ -1,0 +1,190 @@
+{
+  "examples": [
+    {
+      "name": "Simple Answer",
+      "description": "Basic structured response with answer and confidence",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "answer": {
+            "type": "string",
+            "description": "The main answer to the question"
+          },
+          "confidence": {
+            "type": "number",
+            "description": "Confidence level from 0 to 1"
+          }
+        },
+        "required": ["answer", "confidence"]
+      }
+    },
+    {
+      "name": "Product Extraction",
+      "description": "Extract product information from text",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "products": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Product name"
+                },
+                "price": {
+                  "type": "number",
+                  "description": "Product price"
+                },
+                "category": {
+                  "type": "string",
+                  "description": "Product category"
+                },
+                "inStock": {
+                  "type": "boolean",
+                  "description": "Whether product is in stock"
+                }
+              },
+              "required": ["name", "price", "category"]
+            }
+          },
+          "totalCount": {
+            "type": "number",
+            "description": "Total number of products found"
+          }
+        },
+        "required": ["products", "totalCount"]
+      }
+    },
+    {
+      "name": "Sentiment Analysis",
+      "description": "Analyze sentiment with detailed breakdown",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "overallSentiment": {
+            "type": "string",
+            "enum": ["positive", "negative", "neutral"],
+            "description": "Overall sentiment classification"
+          },
+          "score": {
+            "type": "number",
+            "description": "Sentiment score from -1 (negative) to 1 (positive)"
+          },
+          "emotions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of detected emotions"
+          },
+          "keyPhrases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Important phrases that influenced sentiment"
+          }
+        },
+        "required": ["overallSentiment", "score"]
+      }
+    },
+    {
+      "name": "Task Breakdown",
+      "description": "Break down a complex task into steps",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "taskName": {
+            "type": "string",
+            "description": "Name of the overall task"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "stepNumber": {
+                  "type": "number",
+                  "description": "Step sequence number"
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Step title"
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Detailed step description"
+                },
+                "estimatedTime": {
+                  "type": "string",
+                  "description": "Estimated time to complete"
+                },
+                "dependencies": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "description": "Step numbers this step depends on"
+                }
+              },
+              "required": ["stepNumber", "title", "description"]
+            }
+          },
+          "totalEstimatedTime": {
+            "type": "string",
+            "description": "Total estimated time for all steps"
+          }
+        },
+        "required": ["taskName", "steps"]
+      }
+    },
+    {
+      "name": "Contact Information",
+      "description": "Extract contact details from text",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Full name"
+          },
+          "email": {
+            "type": "string",
+            "description": "Email address"
+          },
+          "phone": {
+            "type": "string",
+            "description": "Phone number"
+          },
+          "company": {
+            "type": "string",
+            "description": "Company name"
+          },
+          "address": {
+            "type": "object",
+            "properties": {
+              "street": {
+                "type": "string"
+              },
+              "city": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              },
+              "zipCode": {
+                "type": "string"
+              },
+              "country": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "required": ["name"]
+      }
+    }
+  ]
+}

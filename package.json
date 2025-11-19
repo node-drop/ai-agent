@@ -1,0 +1,49 @@
+{
+  "name": "ai-agent-nodes",
+  "version": "1.0.0",
+  "description": "AI Agent nodes for workflow automation - Build intelligent agents with LLMs, memory, and tools",
+  "main": "index.js",
+  "author": "",
+  "keywords": [
+    "nodeDrop",
+    "nd-node",
+    "workflow",
+    "automation",
+    "ai",
+    "agent",
+    "llm",
+    "openai",
+    "anthropic",
+    "claude",
+    "gpt",
+    "memory",
+    "tools",
+    "function-calling"
+  ],
+  "scripts": {},
+  "nodes": [
+    "nodes/AIAgent.node.js",
+    "nodes/OpenAIModel.node.js",
+    "nodes/AnthropicModel.node.js",
+    "nodes/BufferMemory.node.js",
+    "nodes/WindowMemory.node.js",
+    "nodes/RedisMemory.node.js",
+    "nodes/CalculatorTool.node.js",
+    "nodes/HttpRequestTool.node.js",
+    "nodes/KnowledgeBaseTool.node.js"
+  ],
+  "credentials": [
+    "credentials/OpenAIApi.credentials.js",
+    "credentials/AnthropicApi.credentials.js",
+    "credentials/RedisConnection.credentials.js"
+  ],
+  "dependencies": {
+    "openai": "^4.0.0",
+    "@anthropic-ai/sdk": "^0.27.0",
+    "redis": "^4.6.0",
+    "expr-eval": "^2.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
