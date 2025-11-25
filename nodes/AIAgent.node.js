@@ -781,15 +781,6 @@ const AIAgentNode = {
    * @returns {Promise<Object>} Tool result
    */
   _executeToolCall: async function(toolCall, toolNodes, stateManager) {
-    console.log('🔧 [AI Agent] _executeToolCall CALLED', {
-      toolName: toolCall.name,
-      hasThis: !!this,
-      hasLogger: !!this.logger,
-      executionId: this._executionId,
-      nodeId: this._nodeId,
-      serviceNodeId: this._serviceNodeId,
-    });
-
     const startTime = Date.now();
     
     // Find matching Tool node by name
@@ -800,16 +791,10 @@ const AIAgentNode = {
 
     if (!toolNode) {
       const error = `Tool '${toolCall.name}' not found. Available tools: ${toolNodes.map(n => n.getDefinition().name).join(', ')}`;
+      const duration = Date.now() - startTime;
       
-      // Emit detailed log for tool not found
-      this._emitToolCallLog({
-        toolName: toolCall.name,
-        input: toolCall.arguments,
-        output: null,
-        error,
-        success: false,
-        duration: Date.now() - startTime,
-      });
+      // Log tool not found error
+      this.logCall(toolCall.name, toolCall.arguments, null, duration, { error, type: 'tool-call' });
       
       return {
         success: false,
@@ -828,16 +813,10 @@ const AIAgentNode = {
 
     if (!validation.valid) {
       const error = `Tool argument validation failed: ${validation.error}`;
+      const duration = Date.now() - startTime;
       
-      // Emit detailed log for validation failure
-      this._emitToolCallLog({
-        toolName: toolCall.name,
-        input: toolCall.arguments,
-        output: null,
-        error,
-        success: false,
-        duration: Date.now() - startTime,
-      });
+      // Log validation failure
+      this.logCall(toolCall.name, toolCall.arguments, null, duration, { error, type: 'tool-call' });
       
       return {
         success: false,
@@ -869,15 +848,8 @@ const AIAgentNode = {
         duration,
       });
 
-      // Emit detailed log for successful tool execution
-      this._emitToolCallLog({
-        toolName: toolCall.name,
-        input: toolCall.arguments,
-        output: result,
-        error: null,
-        success: result.success !== false,
-        duration,
-      });
+      // Log successful tool execution
+      this.logCall(toolCall.name, toolCall.arguments, result, duration, { type: 'tool-call' });
       
       // Emit node-completed event after successful execution
       this._emitNodeEvent('node-completed', toolNode, {
@@ -895,15 +867,8 @@ const AIAgentNode = {
         duration,
       });
 
-      // Emit detailed log for tool execution failure
-      this._emitToolCallLog({
-        toolName: toolCall.name,
-        input: toolCall.arguments,
-        output: null,
-        error: errorMessage,
-        success: false,
-        duration,
-      });
+      // Log tool execution failure
+      this.logCall(toolCall.name, toolCall.arguments, null, duration, { error: errorMessage, type: 'tool-call' });
       
       // Emit node-failed event when tool execution fails
       this._emitNodeEvent('node-failed', toolNode, {
@@ -919,88 +884,15 @@ const AIAgentNode = {
   },
 
   /**
-   * Emit a detailed tool call log for the logs tab
-   * @private
-   * @param {Object} logData - Tool call log data
+   * NOTE: Old logging methods have been removed.
+   * Use the simplified logging API injected by NodeService:
+   * 
+   * - this.logCall(name, input, output, duration, options)
+   *   Main method for all logging. Options: { error, statusCode, type }
+   * 
+   * - this.withServiceLogging(serviceName, asyncFn, input)
+   *   Automatic wrapper with timing and error handling
    */
-  _emitToolCallLog: function(logData) {
-    this.logger?.info('[AI Agent] _emitToolCallLog called', {
-      toolName: logData.toolName,
-      hasRealtimeEngine: !!global.realtimeExecutionEngine,
-      executionId: this._executionId,
-      nodeId: this._serviceNodeId,
-      _nodeId: this._nodeId,
-    });
-
-    if (!global.realtimeExecutionEngine) {
-      this.logger?.warn('[AI Agent] global.realtimeExecutionEngine not available');
-      return;
-    }
-
-    const logEntry = {
-      executionId: this._executionId,
-      nodeId: this._serviceNodeId || this._nodeId,
-      level: logData.success ? 'info' : 'error',
-      message: `Tool call: ${logData.toolName}`,
-      timestamp: new Date().toISOString(),
-      data: {
-        toolCall: {
-          name: logData.toolName,
-          input: logData.input,
-          output: logData.output,
-          error: logData.error,
-          success: logData.success,
-          duration: logData.duration,
-        },
-      },
-    };
-
-    this.logger?.info('[AI Agent] Emitting tool call log', {
-      toolName: logData.toolName,
-      success: logData.success,
-      duration: logData.duration,
-      logEntry,
-    });
-
-    global.realtimeExecutionEngine.emit('execution-log', logEntry);
-  },
-
-  /**
-   * Emit a detailed service call log (for Model, Memory, etc.)
-   * @private
-   * @param {Object} logData - Service call log data
-   */
-  _emitServiceLog: function(logData) {
-    if (!global.realtimeExecutionEngine) {
-      return;
-    }
-
-    const logEntry = {
-      executionId: this._executionId,
-      nodeId: this._serviceNodeId || this._nodeId,
-      level: logData.success ? 'info' : 'error',
-      message: `Service call: ${logData.serviceName}`,
-      timestamp: new Date().toISOString(),
-      data: {
-        serviceCall: {
-          name: logData.serviceName,
-          input: logData.input,
-          output: logData.output,
-          error: logData.error,
-          success: logData.success,
-          duration: logData.duration,
-        },
-      },
-    };
-
-    this.logger?.debug('[AI Agent] Emitting service call log', {
-      serviceName: logData.serviceName,
-      success: logData.success,
-      duration: logData.duration,
-    });
-
-    global.realtimeExecutionEngine.emit('execution-log', logEntry);
-  },
 
   /**
    * Call model with retry logic
@@ -1085,23 +977,19 @@ const AIAgentNode = {
         );
         const callDuration = Date.now() - callStartTime;
 
-        // Emit model call log
-        this._emitServiceLog({
-          serviceName: 'Model',
-          input: inputForLog,
-          output: {
-            hasContent: !!modelResponse.content,
-            content: modelResponse.content ? modelResponse.content.substring(0, 300) + (modelResponse.content.length > 300 ? '...' : '') : '',
-            hasToolCalls: !!(modelResponse.toolCalls && modelResponse.toolCalls.length > 0),
-            toolCalls: modelResponse.toolCalls?.map(tc => ({
-              name: tc.name,
-              arguments: tc.arguments,
-            })) || [],
-            finishReason: modelResponse.finishReason,
-          },
-          success: true,
-          duration: callDuration,
-        });
+        // Log model call using simplified API
+        const modelOutput = {
+          hasContent: !!modelResponse.content,
+          content: modelResponse.content ? modelResponse.content.substring(0, 300) + (modelResponse.content.length > 300 ? '...' : '') : '',
+          hasToolCalls: !!(modelResponse.toolCalls && modelResponse.toolCalls.length > 0),
+          toolCalls: modelResponse.toolCalls?.map(tc => ({
+            name: tc.name,
+            arguments: tc.arguments,
+          })) || [],
+          finishReason: modelResponse.finishReason,
+        };
+        
+        this.logCall('Model', inputForLog, modelOutput, callDuration);
 
         this._emitNodeEvent('node-completed', modelNode, { nodeName: 'Model' });
 
@@ -1125,18 +1013,11 @@ const AIAgentNode = {
           continue;
         }
 
-        // Emit model call error log
-        this._emitServiceLog({
-          serviceName: 'Model',
-          input: {
-            messageCount: stateManager.getMessages().length,
-            toolCount: tools.length,
-          },
-          output: null,
-          success: false,
-          duration,
-          error: errorInfo.message,
-        });
+        // Log model call error
+        this.logCall('Model', {
+          messageCount: stateManager.getMessages().length,
+          toolCount: tools.length,
+        }, null, duration, { error: errorInfo.message });
 
         // Error is not recoverable or out of retries
         this._emitNodeEvent('node-failed', modelNode, {
@@ -1198,19 +1079,19 @@ const AIAgentNode = {
               }))
             : [];
 
-          // Emit memory load log
-          this._emitServiceLog({
-            serviceName: 'Memory (Load)',
-            input: { sessionId, operation: 'getMessages' },
-            output: {
-              messageCount: history?.length || 0,
-              hasHistory: !!(history && history.length > 0),
-              messages: messagePreview,
-              moreMessages: history && history.length > 5 ? history.length - 5 : 0,
-            },
-            success: true,
-            duration: memoryDuration,
-          });
+          // Log memory load using simplified API
+          const memoryOutput = {
+            messageCount: history?.length || 0,
+            hasHistory: !!(history && history.length > 0),
+            messages: messagePreview,
+            moreMessages: history && history.length > 5 ? history.length - 5 : 0,
+          };
+          
+          this.logCall('Memory (Load)', 
+            { sessionId, operation: 'getMessages' },
+            memoryOutput,
+            memoryDuration
+          );
           
           if (history && history.length > 0) {
             const filteredHistory = this._filterMessagesForStorage(history);
@@ -1236,15 +1117,13 @@ const AIAgentNode = {
             error: { message: error.message },
           });
           
-          // Emit memory error log
-          this._emitServiceLog({
-            serviceName: 'Memory (Load)',
-            input: { sessionId, operation: 'getMessages' },
-            output: null,
-            success: false,
-            duration: memoryDuration,
-            error: error.message,
-          });
+          // Log memory error
+          this.logCall('Memory (Load)',
+            { sessionId, operation: 'getMessages' },
+            null,
+            memoryDuration,
+            { error: error.message }
+          );
           
           const errorInfo = AgentErrorHandler.handleMemoryError(error);
           this.logger?.warn('[AI Agent] Memory load failed', errorInfo);
@@ -1426,23 +1305,21 @@ const AIAgentNode = {
               timestamp: msg.timestamp,
             }));
 
-            // Emit memory save log
-            this._emitServiceLog({
-              serviceName: 'Memory (Save)',
-              input: {
-                sessionId,
-                operation: 'addMessage',
-                messageCount: messagesToSave.length,
-                messages: saveMessagePreview,
-                moreMessages: messagesToSave.length > 5 ? messagesToSave.length - 5 : 0,
-              },
-              output: {
-                saved: true,
-                messageCount: messagesToSave.length,
-              },
-              success: true,
-              duration: memorySaveDuration,
-            });
+            // Log memory save using simplified API
+            const memorySaveInput = {
+              sessionId,
+              operation: 'addMessage',
+              messageCount: messagesToSave.length,
+              messages: saveMessagePreview,
+              moreMessages: messagesToSave.length > 5 ? messagesToSave.length - 5 : 0,
+            };
+            
+            const memorySaveOutput = {
+              saved: true,
+              messageCount: messagesToSave.length,
+            };
+            
+            this.logCall('Memory (Save)', memorySaveInput, memorySaveOutput, memorySaveDuration);
             
             this._emitNodeEvent('node-completed', memoryNode, { nodeName: 'Memory' });
           } catch (error) {
@@ -1453,18 +1330,13 @@ const AIAgentNode = {
               error: { message: error.message },
             });
             
-            // Emit memory save error log
-            this._emitServiceLog({
-              serviceName: 'Memory (Save)',
-              input: {
-                sessionId,
-                operation: 'addMessage',
-              },
-              output: null,
-              success: false,
-              duration: memorySaveDuration,
-              error: error.message,
-            });
+            // Log memory save error
+            this.logCall('Memory (Save)',
+              { sessionId, operation: 'addMessage' },
+              null,
+              memorySaveDuration,
+              { error: error.message }
+            );
             
             const errorInfo = AgentErrorHandler.handleMemoryError(error);
             this.logger?.warn('[AI Agent] Memory save failed', errorInfo);
