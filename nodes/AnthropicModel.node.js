@@ -37,7 +37,7 @@ const AnthropicModelNode = {
     maxTokens: 1000,
   },
   inputs: [],
-  outputs: ['model'], // Output to connect to AI Agent's model input
+  outputs: ['modelService'], // Output to connect to AI Agent's model input
   properties: [
     {
       displayName: 'Authentication',

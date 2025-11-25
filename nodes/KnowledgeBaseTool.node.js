@@ -34,7 +34,7 @@ const KnowledgeBaseToolNode = {
     embeddingModel: 'text-embedding-3-small',
   },
   inputs: [],
-  outputs: ['tool'], // Output to connect to AI Agent's tools input
+  outputs: ['toolService'], // Output to connect to AI Agent's tools input
   properties: [
     {
       displayName: 'Authentication',

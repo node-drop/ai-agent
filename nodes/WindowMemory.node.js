@@ -44,7 +44,7 @@ const WindowMemoryNode = {
     maxMessages: 10,
   },
   inputs: [],
-  outputs: ['memory'], // Output to connect to AI Agent's memory input
+  outputs: ['memoryService'], // Output to connect to AI Agent's memory input
   properties: [
     {
       displayName: 'Session ID',

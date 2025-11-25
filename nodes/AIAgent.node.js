@@ -46,13 +46,13 @@ const AIAgentNode = {
     userMessage: '',
     maxIterations: 10,
   },
-  inputs: ['main', 'model', 'memory', 'tools'],
+  inputs: ['main', 'modelService', 'memoryService', 'toolService'],
   outputs: ['main'],
   inputsConfig: {
     main: { position: 'left' },
-    model: { position: 'bottom', displayName: 'Model', required: true },
-    memory: { position: 'bottom', displayName: 'Memory', required: false },
-    tools: { position: 'bottom', displayName: 'Tools', required: false, multiple: true },
+    modelService: { position: 'bottom', displayName: 'Model', required: true },
+    memoryService: { position: 'bottom', displayName: 'Memory', required: false },
+    toolService: { position: 'bottom', displayName: 'Tools', required: false, multiple: true },
   },
   properties: [
     {
@@ -435,8 +435,8 @@ const AIAgentNode = {
    * @returns {Object} The connected Model node instance
    */
   _discoverModelNode: async function() {
-    // Get the Model node from the 'model' input connection
-    const modelNode = await this._getConnectedNode('model');
+    // Get the Model node from the 'modelService' input connection
+    const modelNode = await this._getConnectedNode('modelService');
 
     if (!modelNode) {
       throw new Error('AI Agent requires a connected Model node. Please connect a Model node to the "model" input.');
@@ -457,8 +457,8 @@ const AIAgentNode = {
    * @returns {Object|null} The connected Memory node instance or null
    */
   _discoverMemoryNode: async function() {
-    // Get the Memory node from the 'memory' input connection
-    const memoryNode = await this._getConnectedNode('memory');
+    // Get the Memory node from the 'memoryService' input connection
+    const memoryNode = await this._getConnectedNode('memoryService');
 
     if (!memoryNode) {
       this.logger?.info('[AI Agent] No Memory node connected - agent will not persist conversation history');
@@ -486,15 +486,15 @@ const AIAgentNode = {
     const toolNodes = [];
     
     // Get the input data for tools connection
-    const inputData = await this.getInputData?.('tools');
+    const inputData = await this.getInputData?.('toolService');
     
-    if (!inputData || !inputData.tools) {
+    if (!inputData || !inputData.toolService) {
       this.logger?.debug('[AI Agent] No tool nodes connected');
       return toolNodes;
     }
 
     // Service inputs contain an array of node references
-    const serviceNodes = inputData.tools;
+    const serviceNodes = inputData.toolService;
     if (!Array.isArray(serviceNodes) || serviceNodes.length === 0) {
       this.logger?.debug('[AI Agent] Tool nodes array is empty');
       return toolNodes;
@@ -1402,9 +1402,9 @@ const AIAgentNode = {
     // No need to set it here, just use this.userId when needed
     
     this.logger?.debug('[AI Agent] Execute called', {
-      hasModel: !!inputData.model,
-      hasMemory: !!inputData.memory,
-      hasTools: !!inputData.tools,
+      hasModel: !!inputData.modelService,
+      hasMemory: !!inputData.memoryService,
+      hasTools: !!inputData.toolService,
     });
     
     try {

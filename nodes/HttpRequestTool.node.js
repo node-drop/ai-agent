@@ -30,7 +30,7 @@ const HttpRequestToolNode = {
     name: 'HTTP Request Tool',
   },
   inputs: [],
-  outputs: ['tool'], // Output to connect to AI Agent's tools input
+  outputs: ['toolService'], // Output to connect to AI Agent's tools input
   properties: [
     {
       displayName: 'Authentication',
