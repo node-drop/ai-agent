@@ -19,7 +19,7 @@ const { validateUrl } = require('../utils/urlSecurityValidator');
 const HttpRequestToolNode = {
   identifier: 'http-request-tool',
   nodeCategory: 'tool', // Indicates this is a tool node (not directly executable)
-  displayName: 'HTTP Request Tool',
+  displayName: 'HTTP Tool',
   name: 'http-request-tool',
   group: ['ai', 'tool'],
   version: 1,

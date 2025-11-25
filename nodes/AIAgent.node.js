@@ -48,7 +48,6 @@ const AIAgentNode = {
   },
   inputs: ['main', 'model', 'memory', 'tools'],
   outputs: ['main'],
-  // Service inputs positioned at bottom (n8n style)
   inputsConfig: {
     main: { position: 'left' },
     model: { position: 'bottom', displayName: 'Model', required: true },
@@ -485,21 +484,135 @@ const AIAgentNode = {
    */
   _discoverToolNodes: async function() {
     const toolNodes = [];
-    const connectedTools = await this._getConnectedNode('tools');
     
-    if (connectedTools) {
-      const toolsArray = Array.isArray(connectedTools) ? connectedTools : [connectedTools];
-      
-      for (const toolNode of toolsArray) {
+    // Get the input data for tools connection
+    const inputData = await this.getInputData?.('tools');
+    
+    if (!inputData || !inputData.tools) {
+      this.logger?.debug('[AI Agent] No tool nodes connected');
+      return toolNodes;
+    }
+
+    // Service inputs contain an array of node references
+    const serviceNodes = inputData.tools;
+    if (!Array.isArray(serviceNodes) || serviceNodes.length === 0) {
+      this.logger?.debug('[AI Agent] Tool nodes array is empty');
+      return toolNodes;
+    }
+
+    this.logger?.debug('[AI Agent] Found tool node references', {
+      count: serviceNodes.length,
+      types: serviceNodes.map(n => n.type),
+    });
+
+    // Process each connected tool node
+    for (const serviceNodeRef of serviceNodes) {
+      try {
+        // Get the node definition from the node registry
+        if (!global.nodeService) {
+          this.logger?.error('[AI Agent] global.nodeService not available');
+          continue;
+        }
+
+        const nodeDefinition = await global.nodeService.getNodeDefinition(serviceNodeRef.type);
+        
+        // Service nodes are passed with their configuration in the inputData
+        const serviceNodeConfig = serviceNodeRef;
+        
+        // Create a bound instance with a custom context
+        const boundNode = Object.create(nodeDefinition);
+        
+        // Store service node ID, execution ID, and user ID
+        boundNode._serviceNodeId = serviceNodeConfig.nodeId;
+        boundNode._executionId = this._executionId;
+        boundNode._userId = this.userId;
+        
+        // Copy helper methods and logger from current context
+        boundNode.logger = this.logger;
+        boundNode.helpers = this.helpers;
+        boundNode.resolveValue = this.resolveValue;
+        boundNode.resolvePath = this.resolvePath;
+        boundNode.extractJsonData = this.extractJsonData;
+        
+        // Create a getNodeParameter function
+        boundNode.getNodeParameter = (paramName) => {
+          return serviceNodeConfig.parameters?.[paramName];
+        };
+        
+        // Create a getCredentials function
+        boundNode.getCredentials = async (credentialType) => {
+          this.logger?.debug('[AI Agent] Tool node requesting credentials', {
+            credentialType,
+            serviceNodeId: serviceNodeConfig.nodeId,
+            toolType: serviceNodeRef.type,
+          });
+          
+          // Handle legacy array format
+          let credentialId;
+          if (Array.isArray(serviceNodeConfig.credentials)) {
+            credentialId = serviceNodeConfig.credentials[0];
+          } else {
+            credentialId = this._getCredentialId(serviceNodeConfig, credentialType);
+          }
+          
+          if (!credentialId) {
+            throw new Error(`No credential of type '${credentialType}' available for tool ${serviceNodeRef.type}`);
+          }
+          
+          this.logger?.debug('[AI Agent] Found credential ID for tool', {
+            credentialType,
+            credentialId,
+            toolType: serviceNodeRef.type,
+          });
+          
+          // Use the global credential service
+          if (!global.credentialService) {
+            this.logger?.error('[AI Agent] global.credentialService not available');
+            throw new Error('Credential service not available');
+          }
+          
+          try {
+            const userId = this._userId || this.userId || 'unknown';
+            const credentialData = await global.credentialService.getCredentialForExecution(
+              credentialId,
+              userId
+            );
+            
+            this.logger?.debug('[AI Agent] Successfully fetched credential for tool', {
+              credentialType,
+              hasData: !!credentialData,
+              toolType: serviceNodeRef.type,
+            });
+            
+            return credentialData;
+          } catch (error) {
+            this.logger?.error('[AI Agent] Failed to fetch credential for tool', {
+              credentialType,
+              error: error.message,
+              toolType: serviceNodeRef.type,
+            });
+            throw new Error(`Failed to fetch credential: ${error.message}`);
+          }
+        };
+        
         // Validate it's a Tool node by checking if it has the required methods
-        if (toolNode && toolNode.getDefinition && typeof toolNode.getDefinition === 'function' &&
-            toolNode.executeTool && typeof toolNode.executeTool === 'function') {
-          toolNodes.push(toolNode);
+        if (boundNode.getDefinition && typeof boundNode.getDefinition === 'function' &&
+            boundNode.executeTool && typeof boundNode.executeTool === 'function') {
+          toolNodes.push(boundNode);
+          this.logger?.debug('[AI Agent] Successfully bound tool node', {
+            type: serviceNodeRef.type,
+            nodeId: serviceNodeConfig.nodeId,
+          });
         } else {
           this.logger?.warn('[AI Agent] Invalid Tool node - missing required methods', {
-            type: toolNode?.type,
+            type: serviceNodeRef.type,
           });
         }
+      } catch (error) {
+        this.logger?.error('[AI Agent] Failed to bind tool node', {
+          type: serviceNodeRef.type,
+          error: error.message,
+        });
       }
     }
 
@@ -508,6 +621,8 @@ const AIAgentNode = {
         count: toolNodes.length,
         types: toolNodes.map(n => n.type),
       });
+    } else {
+      this.logger?.warn('[AI Agent] No valid tool nodes discovered');
     }
 
     return toolNodes;
@@ -666,6 +781,17 @@ const AIAgentNode = {
    * @returns {Promise<Object>} Tool result
    */
   _executeToolCall: async function(toolCall, toolNodes, stateManager) {
+    console.log('🔧 [AI Agent] _executeToolCall CALLED', {
+      toolName: toolCall.name,
+      hasThis: !!this,
+      hasLogger: !!this.logger,
+      executionId: this._executionId,
+      nodeId: this._nodeId,
+      serviceNodeId: this._serviceNodeId,
+    });
+
+    const startTime = Date.now();
+    
     // Find matching Tool node by name
     const toolNode = toolNodes.find(node => {
       const definition = node.getDefinition();
@@ -673,9 +799,21 @@ const AIAgentNode = {
     });
 
     if (!toolNode) {
+      const error = `Tool '${toolCall.name}' not found. Available tools: ${toolNodes.map(n => n.getDefinition().name).join(', ')}`;
+      
+      // Emit detailed log for tool not found
+      this._emitToolCallLog({
+        toolName: toolCall.name,
+        input: toolCall.arguments,
+        output: null,
+        error,
+        success: false,
+        duration: Date.now() - startTime,
+      });
+      
       return {
         success: false,
-        error: `Tool '${toolCall.name}' not found. Available tools: ${toolNodes.map(n => n.getDefinition().name).join(', ')}`,
+        error,
       };
     }
 
@@ -689,9 +827,21 @@ const AIAgentNode = {
     );
 
     if (!validation.valid) {
+      const error = `Tool argument validation failed: ${validation.error}`;
+      
+      // Emit detailed log for validation failure
+      this._emitToolCallLog({
+        toolName: toolCall.name,
+        input: toolCall.arguments,
+        output: null,
+        error,
+        success: false,
+        duration: Date.now() - startTime,
+      });
+      
       return {
         success: false,
-        error: `Tool argument validation failed: ${validation.error}`,
+        error,
       };
     }
 
@@ -705,7 +855,29 @@ const AIAgentNode = {
 
     // Execute the tool
     try {
+      this.logger?.info('[AI Agent] Executing tool', {
+        toolName: toolCall.name,
+        arguments: toolCall.arguments,
+      });
+
       const result = await toolNode.executeTool(toolCall.arguments);
+      const duration = Date.now() - startTime;
+      
+      this.logger?.info('[AI Agent] Tool execution completed', {
+        toolName: toolCall.name,
+        success: result.success !== false,
+        duration,
+      });
+
+      // Emit detailed log for successful tool execution
+      this._emitToolCallLog({
+        toolName: toolCall.name,
+        input: toolCall.arguments,
+        output: result,
+        error: null,
+        success: result.success !== false,
+        duration,
+      });
       
       // Emit node-completed event after successful execution
       this._emitNodeEvent('node-completed', toolNode, {
@@ -714,6 +886,25 @@ const AIAgentNode = {
       
       return result;
     } catch (error) {
+      const duration = Date.now() - startTime;
+      const errorMessage = `Tool execution error: ${error.message}`;
+      
+      this.logger?.error('[AI Agent] Tool execution failed', {
+        toolName: toolCall.name,
+        error: errorMessage,
+        duration,
+      });
+
+      // Emit detailed log for tool execution failure
+      this._emitToolCallLog({
+        toolName: toolCall.name,
+        input: toolCall.arguments,
+        output: null,
+        error: errorMessage,
+        success: false,
+        duration,
+      });
+      
       // Emit node-failed event when tool execution fails
       this._emitNodeEvent('node-failed', toolNode, {
         nodeName: toolDefinition.name,
@@ -722,9 +913,93 @@ const AIAgentNode = {
       
       return {
         success: false,
-        error: `Tool execution error: ${error.message}`,
+        error: errorMessage,
       };
     }
+  },
+
+  /**
+   * Emit a detailed tool call log for the logs tab
+   * @private
+   * @param {Object} logData - Tool call log data
+   */
+  _emitToolCallLog: function(logData) {
+    this.logger?.info('[AI Agent] _emitToolCallLog called', {
+      toolName: logData.toolName,
+      hasRealtimeEngine: !!global.realtimeExecutionEngine,
+      executionId: this._executionId,
+      nodeId: this._serviceNodeId,
+      _nodeId: this._nodeId,
+    });
+
+    if (!global.realtimeExecutionEngine) {
+      this.logger?.warn('[AI Agent] global.realtimeExecutionEngine not available');
+      return;
+    }
+
+    const logEntry = {
+      executionId: this._executionId,
+      nodeId: this._serviceNodeId || this._nodeId,
+      level: logData.success ? 'info' : 'error',
+      message: `Tool call: ${logData.toolName}`,
+      timestamp: new Date().toISOString(),
+      data: {
+        toolCall: {
+          name: logData.toolName,
+          input: logData.input,
+          output: logData.output,
+          error: logData.error,
+          success: logData.success,
+          duration: logData.duration,
+        },
+      },
+    };
+
+    this.logger?.info('[AI Agent] Emitting tool call log', {
+      toolName: logData.toolName,
+      success: logData.success,
+      duration: logData.duration,
+      logEntry,
+    });
+
+    global.realtimeExecutionEngine.emit('execution-log', logEntry);
+  },
+
+  /**
+   * Emit a detailed service call log (for Model, Memory, etc.)
+   * @private
+   * @param {Object} logData - Service call log data
+   */
+  _emitServiceLog: function(logData) {
+    if (!global.realtimeExecutionEngine) {
+      return;
+    }
+
+    const logEntry = {
+      executionId: this._executionId,
+      nodeId: this._serviceNodeId || this._nodeId,
+      level: logData.success ? 'info' : 'error',
+      message: `Service call: ${logData.serviceName}`,
+      timestamp: new Date().toISOString(),
+      data: {
+        serviceCall: {
+          name: logData.serviceName,
+          input: logData.input,
+          output: logData.output,
+          error: logData.error,
+          success: logData.success,
+          duration: logData.duration,
+        },
+      },
+    };
+
+    this.logger?.debug('[AI Agent] Emitting service call log', {
+      serviceName: logData.serviceName,
+      success: logData.success,
+      duration: logData.duration,
+    });
+
+    global.realtimeExecutionEngine.emit('execution-log', logEntry);
   },
 
   /**
@@ -750,6 +1025,7 @@ const AIAgentNode = {
   ) {
     const maxRetries = 2;
     let retryCount = 0;
+    const startTime = Date.now();
 
     this._emitNodeEvent('node-started', modelNode, { nodeName: 'Model' });
 
@@ -783,18 +1059,56 @@ const AIAgentNode = {
           toolChoice,
         });
 
+        // Prepare input for logging (sanitize messages to avoid huge logs)
+        const recentMessages = messages.slice(-3).map(msg => ({
+          role: msg.role,
+          content: msg.content ? msg.content.substring(0, 150) + (msg.content.length > 150 ? '...' : '') : '',
+          hasToolCalls: !!(msg.tool_calls && msg.tool_calls.length > 0),
+          toolCallCount: msg.tool_calls?.length || 0,
+        }));
+
+        const inputForLog = {
+          messageCount: messages.length,
+          recentMessages,
+          toolCount: tools.length,
+          toolNames: tools.map(t => t.name),
+          toolChoice,
+          hasOutputSchema: !!outputSchema,
+        };
+
+        const callStartTime = Date.now();
         const modelResponse = await modelNode.chat(
           messages,
           chatOptions.tools,
           chatOptions.toolChoice,
           chatOptions.responseFormat
         );
+        const callDuration = Date.now() - callStartTime;
+
+        // Emit model call log
+        this._emitServiceLog({
+          serviceName: 'Model',
+          input: inputForLog,
+          output: {
+            hasContent: !!modelResponse.content,
+            content: modelResponse.content ? modelResponse.content.substring(0, 300) + (modelResponse.content.length > 300 ? '...' : '') : '',
+            hasToolCalls: !!(modelResponse.toolCalls && modelResponse.toolCalls.length > 0),
+            toolCalls: modelResponse.toolCalls?.map(tc => ({
+              name: tc.name,
+              arguments: tc.arguments,
+            })) || [],
+            finishReason: modelResponse.finishReason,
+          },
+          success: true,
+          duration: callDuration,
+        });
 
         this._emitNodeEvent('node-completed', modelNode, { nodeName: 'Model' });
 
         return modelResponse;
       } catch (error) {
         const errorInfo = AgentErrorHandler.handleModelError(error);
+        const duration = Date.now() - startTime;
 
         // Check if error is recoverable and we have retries left
         if (AgentErrorHandler.isRecoverable(errorInfo) && retryCount < maxRetries) {
@@ -810,6 +1124,19 @@ const AIAgentNode = {
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
+
+        // Emit model call error log
+        this._emitServiceLog({
+          serviceName: 'Model',
+          input: {
+            messageCount: stateManager.getMessages().length,
+            toolCount: tools.length,
+          },
+          output: null,
+          success: false,
+          duration,
+          error: errorInfo.message,
+        });
 
         // Error is not recoverable or out of retries
         this._emitNodeEvent('node-failed', modelNode, {
@@ -853,12 +1180,37 @@ const AIAgentNode = {
     try {
       // Step 1: Load conversation history from Memory node if present
       if (memoryNode && sessionId) {
+        const memoryStartTime = Date.now();
         try {
           this._emitNodeEvent('node-started', memoryNode, { nodeName: 'Memory' });
           
           const history = await memoryNode.getMessages(sessionId);
+          const memoryDuration = Date.now() - memoryStartTime;
           
           this._emitNodeEvent('node-completed', memoryNode, { nodeName: 'Memory' });
+          
+          // Prepare message preview for logging
+          const messagePreview = history && history.length > 0 
+            ? history.slice(0, 5).map(msg => ({
+                role: msg.role,
+                content: msg.content ? msg.content.substring(0, 100) + (msg.content.length > 100 ? '...' : '') : '',
+                timestamp: msg.timestamp,
+              }))
+            : [];
+
+          // Emit memory load log
+          this._emitServiceLog({
+            serviceName: 'Memory (Load)',
+            input: { sessionId, operation: 'getMessages' },
+            output: {
+              messageCount: history?.length || 0,
+              hasHistory: !!(history && history.length > 0),
+              messages: messagePreview,
+              moreMessages: history && history.length > 5 ? history.length - 5 : 0,
+            },
+            success: true,
+            duration: memoryDuration,
+          });
           
           if (history && history.length > 0) {
             const filteredHistory = this._filterMessagesForStorage(history);
@@ -877,9 +1229,21 @@ const AIAgentNode = {
             });
           }
         } catch (error) {
+          const memoryDuration = Date.now() - memoryStartTime;
+          
           this._emitNodeEvent('node-failed', memoryNode, {
             nodeName: 'Memory',
             error: { message: error.message },
+          });
+          
+          // Emit memory error log
+          this._emitServiceLog({
+            serviceName: 'Memory (Load)',
+            input: { sessionId, operation: 'getMessages' },
+            output: null,
+            success: false,
+            duration: memoryDuration,
+            error: error.message,
           });
           
           const errorInfo = AgentErrorHandler.handleMemoryError(error);
@@ -1036,6 +1400,7 @@ const AIAgentNode = {
 
         // Step 5: Save conversation to Memory node if present
         if (memoryNode && sessionId) {
+          const memorySaveStartTime = Date.now();
           try {
             this._emitNodeEvent('node-started', memoryNode, { nodeName: 'Memory' });
             
@@ -1046,17 +1411,59 @@ const AIAgentNode = {
               await memoryNode.addMessage(sessionId, message);
             }
             
+            const memorySaveDuration = Date.now() - memorySaveStartTime;
+            
             this.logger?.info('[AI Agent] Saved conversation to memory', {
               totalMessages: messages.length,
               savedMessages: messagesToSave.length,
               sessionId,
             });
             
+            // Prepare message preview for logging
+            const saveMessagePreview = messagesToSave.slice(0, 5).map(msg => ({
+              role: msg.role,
+              content: msg.content ? msg.content.substring(0, 100) + (msg.content.length > 100 ? '...' : '') : '',
+              timestamp: msg.timestamp,
+            }));
+
+            // Emit memory save log
+            this._emitServiceLog({
+              serviceName: 'Memory (Save)',
+              input: {
+                sessionId,
+                operation: 'addMessage',
+                messageCount: messagesToSave.length,
+                messages: saveMessagePreview,
+                moreMessages: messagesToSave.length > 5 ? messagesToSave.length - 5 : 0,
+              },
+              output: {
+                saved: true,
+                messageCount: messagesToSave.length,
+              },
+              success: true,
+              duration: memorySaveDuration,
+            });
+            
             this._emitNodeEvent('node-completed', memoryNode, { nodeName: 'Memory' });
           } catch (error) {
+            const memorySaveDuration = Date.now() - memorySaveStartTime;
+            
             this._emitNodeEvent('node-failed', memoryNode, {
               nodeName: 'Memory',
               error: { message: error.message },
+            });
+            
+            // Emit memory save error log
+            this._emitServiceLog({
+              serviceName: 'Memory (Save)',
+              input: {
+                sessionId,
+                operation: 'addMessage',
+              },
+              output: null,
+              success: false,
+              duration: memorySaveDuration,
+              error: error.message,
             });
             
             const errorInfo = AgentErrorHandler.handleMemoryError(error);
