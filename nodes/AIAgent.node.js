@@ -38,8 +38,26 @@ const AIAgentNode = {
   displayName: 'AI Agent',
   name: 'ai-agent',
   group: ['ai', 'agent'],
-  version: 1,
+  version: 2,
   description: 'AI Agent orchestrator that coordinates model, memory, and tools',
+  ai: {
+    description: "An autonomous agent that can reason, plan, and execute tasks using connected tools. Connect a Model (required) and Tools (optional). Best for complex tasks requiring multi-step reasoning.",
+    useCases: [
+      "Complex workflow automation requiring decision making",
+      "Research assistance with web browsing capabilities",
+      "Data analysis with dynamic query generation",
+      "Customer support with access to knowledge bases"
+    ],
+    tags: ["agent", "autonomous", "reasoning", "tools", "planning"],
+    complexityScore: 8,
+    recommendations: {
+      inputs: {
+        modelService: ["openai", "anthropic"],
+        memoryService: ["redis-memory", "postgres-memory"],
+        toolService: ["google-search", "calculator", "http-request"]
+      }
+    }
+  },
   icon: 'lucide:bot',
   color: '#9B59B6',
   defaults: {
@@ -60,7 +78,7 @@ const AIAgentNode = {
     {
       displayName: 'System Prompt',
       name: 'systemPrompt',
-      type: 'string',
+      type: 'expression',
       required: false,
       default: 'You are a helpful AI assistant.',
       description: 'Instructions that define the agent\'s behavior and personality',
@@ -72,7 +90,7 @@ const AIAgentNode = {
     {
       displayName: 'User Message',
       name: 'userMessage',
-      type: 'string',
+      type: 'expression',
       required: true,
       default: '',
       description: 'The message to send to the agent. Supports {{json.field}} expressions',
@@ -130,7 +148,7 @@ const AIAgentNode = {
           name: 'outputFormat',
           displayName: 'Output Format',
           type: 'options',
-          default: 'text',
+          default: 'json',
           description: 'Format of the agent response',
           options: [
             {

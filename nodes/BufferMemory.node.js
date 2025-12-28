@@ -60,19 +60,6 @@ const BufferMemoryNode = {
       default: false,
       description: 'Clear all messages for this session before execution',
     },
-    {
-      displayName: 'Clear Memory Now',
-      name: 'clearMemoryButton',
-      type: 'button',
-      required: false,
-      description: 'Immediately clear all messages for the current session',
-      typeOptions: {
-        buttonText: 'Clear Memory',
-        variant: 'destructive',
-        size: 'default',
-        action: 'clearMemory', // Special action identifier
-      },
-    },
   ],
 
   /**
