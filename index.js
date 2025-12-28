@@ -10,6 +10,7 @@ module.exports = {
     "calculatorTool": require("./nodes/CalculatorTool.node.js"),
     "httpRequestTool": require("./nodes/HttpRequestTool.node.js"),
     "knowledgeBaseTool": require("./nodes/KnowledgeBaseTool.node.js"),
+    "askHumanTool": require("./nodes/AskHumanTool.node.js"),
   },
   credentials: {
     "openaiApi": require("./credentials/OpenAIApi.credentials.js"),

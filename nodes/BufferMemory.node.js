@@ -34,7 +34,7 @@ const BufferMemoryNode = {
   group: ['ai', 'memory'],
   version: 1,
   description: 'Store all conversation messages without limit (service node)',
-  icon: 'fa:database',
+  icon: 'file:buffer-memory.svg',
   color: '#4A90E2',
   defaults: {
     name: 'Buffer Memory',
@@ -51,6 +51,27 @@ const BufferMemoryNode = {
       default: 'default',
       description: 'Unique identifier for conversation context. Supports {{json.field}} expressions (optional - can be provided by AI Agent)',
       placeholder: '{{json.userId}} or static-session-id',
+    },
+    {
+      displayName: 'Clear Memory',
+      name: 'clearMemory',
+      type: 'boolean',
+      required: false,
+      default: false,
+      description: 'Clear all messages for this session before execution',
+    },
+    {
+      displayName: 'Clear Memory Now',
+      name: 'clearMemoryButton',
+      type: 'button',
+      required: false,
+      description: 'Immediately clear all messages for the current session',
+      typeOptions: {
+        buttonText: 'Clear Memory',
+        variant: 'destructive',
+        size: 'default',
+        action: 'clearMemory', // Special action identifier
+      },
     },
   ],
 
@@ -231,6 +252,31 @@ const BufferMemoryNode = {
         'Connect it to an AI Agent node instead.'
     );
   },
+  
+  /**
+   * Get all active sessions (for debugging/management)
+   * @returns {Array<string>} Array of session IDs
+   */
+  getSessions: function() {
+    return Array.from(globalStorage.keys());
+  },
+  
+  /**
+   * Get storage stats
+   * @returns {Object} Storage statistics
+   */
+  getStats: function() {
+    const stats = {};
+    for (const [sessionId, messages] of globalStorage.entries()) {
+      stats[sessionId] = {
+        messageCount: messages.length,
+        lastMessage: messages.length > 0 ? messages[messages.length - 1].timestamp : null,
+      };
+    }
+    return stats;
+  },
 };
 
+// Export the node and expose globalStorage for API access
 module.exports = BufferMemoryNode;
+module.exports.globalStorage = globalStorage;

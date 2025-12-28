@@ -1,0 +1,129 @@
+{
+  "name": "Email Agent with Human Approval",
+  "description": "AI Agent that asks for human confirmation before sending emails",
+  "nodes": [
+    {
+      "id": "chat-trigger-1",
+      "type": "chat-trigger",
+      "position": { "x": 100, "y": 100 },
+      "parameters": {
+        "chatId": "email-assistant"
+      }
+    },
+    {
+      "id": "ai-agent-1",
+      "type": "ai-agent",
+      "position": { "x": 300, "y": 100 },
+      "parameters": {
+        "systemPrompt": "You are an email marketing assistant. Before sending any email, you MUST use the ask_human tool to get confirmation from the user. Provide details about the email (recipients, subject, content preview) and wait for approval.",
+        "userMessage": "{{json.message}}",
+        "maxIterations": 10,
+        "options": {
+          "toolChoice": "auto",
+          "outputFormat": "text",
+          "sessionId": "{{json.userId}}",
+          "timeout": 300000
+        }
+      }
+    },
+    {
+      "id": "openai-model-1",
+      "type": "openai-model",
+      "position": { "x": 300, "y": 250 },
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "temperature": 0.7,
+        "maxTokens": 1000
+      },
+      "credentials": {
+        "openaiApi": "cred_openai_123"
+      }
+    },
+    {
+      "id": "buffer-memory-1",
+      "type": "buffer-memory",
+      "position": { "x": 400, "y": 250 },
+      "parameters": {
+        "maxMessages": 20
+      }
+    },
+    {
+      "id": "ask-human-tool-1",
+      "type": "ask-human-tool",
+      "position": { "x": 200, "y": 250 },
+      "parameters": {
+        "timeout": 300,
+        "autoApproveKeywords": "yes, approve, proceed, ok, confirm, send it",
+        "autoRejectKeywords": "no, reject, cancel, stop, deny, don't send"
+      }
+    },
+    {
+      "id": "http-request-tool-1",
+      "type": "http-request-tool",
+      "position": { "x": 250, "y": 250 },
+      "parameters": {
+        "allowedDomains": "api.sendgrid.com, api.mailgun.net"
+      }
+    },
+    {
+      "id": "chat-reply-1",
+      "type": "chat-reply",
+      "position": { "x": 500, "y": 100 },
+      "parameters": {
+        "message": "{{json.response}}"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "source": "chat-trigger-1",
+      "sourceOutput": "main",
+      "target": "ai-agent-1",
+      "targetInput": "main"
+    },
+    {
+      "source": "openai-model-1",
+      "sourceOutput": "modelService",
+      "target": "ai-agent-1",
+      "targetInput": "modelService"
+    },
+    {
+      "source": "buffer-memory-1",
+      "sourceOutput": "memoryService",
+      "target": "ai-agent-1",
+      "targetInput": "memoryService"
+    },
+    {
+      "source": "ask-human-tool-1",
+      "sourceOutput": "toolService",
+      "target": "ai-agent-1",
+      "targetInput": "toolService"
+    },
+    {
+      "source": "http-request-tool-1",
+      "sourceOutput": "toolService",
+      "target": "ai-agent-1",
+      "targetInput": "toolService"
+    },
+    {
+      "source": "ai-agent-1",
+      "sourceOutput": "main",
+      "target": "chat-reply-1",
+      "targetInput": "main"
+    }
+  ],
+  "exampleConversation": [
+    {
+      "user": "Send a promotional email to all customers about our Black Friday sale",
+      "agent": "I'll help you send that email. Let me prepare the details first.\n\n🤔 **Human Input Required**\n\nI'm about to send a promotional email to 10,247 customers with the following details:\n\n**Subject:** Black Friday Sale - Up to 70% Off!\n\n**Preview:** Don't miss our biggest sale of the year! Black Friday deals are here with discounts up to 70% on all products. Shop now before items sell out!\n\n**Recipients:** 10,247 active customers\n\n**Estimated Cost:** $102 (email service fees)\n\n📋 **Context:** This will be sent to all customers who have opted in to marketing emails.\n\n**Options:**\n1. yes - send the email\n2. no - cancel\n3. modify - make changes\n\n_Please respond to continue..._"
+    },
+    {
+      "user": "The subject is too generic. Make it more exciting",
+      "agent": "Great feedback! How about this:\n\n**New Subject:** 🔥 BLACK FRIDAY: Your Exclusive 70% OFF Starts NOW!\n\nShould I proceed with this subject line? (yes/no/modify)"
+    },
+    {
+      "user": "yes, send it",
+      "agent": "✓ Email sent successfully to 10,247 customers!\n\n**Campaign Details:**\n- Campaign ID: camp_bf_2024_001\n- Sent: 10,247 emails\n- Estimated delivery: 5-10 minutes\n- Tracking: Enabled\n\nYou can monitor the campaign performance in your email dashboard."
+    }
+  ]
+}

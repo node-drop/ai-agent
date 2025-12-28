@@ -29,6 +29,8 @@ const {
   AgentErrorHandler,
 } = require('../utils/agentLoopUtilities');
 
+const executionPauseManager = require('../utils/executionPauseManager');
+
 const { z } = require('zod');
 
 const AIAgentNode = {
@@ -1059,7 +1061,24 @@ const AIAgentNode = {
     const toolTracker = new ToolCallTracker();
 
     try {
-      // Step 1: Load conversation history from Memory node if present
+      // Step 1: Clear memory if requested (before loading history)
+      if (memoryNode && sessionId) {
+        const shouldClearMemory = memoryNode.getNodeParameter?.('clearMemory');
+        if (shouldClearMemory) {
+          this.logger?.info('[AI Agent] Clearing memory for session', { sessionId });
+          try {
+            await memoryNode.clear(sessionId);
+            this.logger?.info('[AI Agent] Memory cleared successfully', { sessionId });
+          } catch (error) {
+            this.logger?.warn('[AI Agent] Failed to clear memory', {
+              sessionId,
+              error: error.message,
+            });
+          }
+        }
+      }
+      
+      // Step 2: Load conversation history from Memory node if present
       if (memoryNode && sessionId) {
         const memoryStartTime = Date.now();
         try {
@@ -1229,6 +1248,63 @@ const AIAgentNode = {
                 toolNodes,
                 stateManager
               );
+
+              // Check if tool requires human input (return question and end execution)
+              if (toolResult.requiresHumanInput && toolResult._pauseExecution) {
+                this.logger?.info('[AI Agent] Tool requires human input - returning question to user', {
+                  toolName: toolCall.name,
+                  question: toolResult.originalQuestion,
+                });
+
+                // Add assistant message with the question to conversation
+                stateManager.addMessage({
+                  role: 'assistant',
+                  content: toolResult.question,
+                  timestamp: Date.now(),
+                  requiresHumanInput: true,
+                });
+
+                // Save conversation to memory if available
+                if (memoryNode && sessionId) {
+                  try {
+                    const messages = stateManager.getMessages();
+                    const messagesToSave = this._filterMessagesForStorage(messages);
+                    
+                    for (const message of messagesToSave) {
+                      await memoryNode.addMessage(sessionId, message);
+                    }
+                    
+                    this.logger?.info('[AI Agent] Saved conversation with pending question to memory', {
+                      messageCount: messagesToSave.length,
+                      sessionId,
+                    });
+                  } catch (error) {
+                    this.logger?.warn('[AI Agent] Failed to save to memory', {
+                      error: error.message,
+                    });
+                  }
+                }
+
+                // Mark as waiting for human input
+                stateManager.markCompleted();
+
+                // Return the question to the user
+                // The next user message will be treated as the response
+                return {
+                  response: toolResult.question,
+                  waitingForHumanInput: true,
+                  metadata: {
+                    ...stateManager.getMetadata(),
+                    toolCalls: toolTracker.getRecords(),
+                    status: 'waiting_for_human_input',
+                    pendingToolCall: {
+                      toolName: toolCall.name,
+                      toolCallId: toolCall.id,
+                      question: toolResult.originalQuestion,
+                    },
+                  },
+                };
+              }
 
               // Complete tracking
               toolTracker.completeTracking(trackingId, toolResult);
@@ -1427,7 +1503,8 @@ const AIAgentNode = {
       // Get options
       const toolChoice = options.toolChoice || 'auto';
       const outputFormat = options.outputFormat || 'text';
-      const sessionId = options.sessionId || 'default';
+      // Use 'default' only if sessionId is empty/undefined/null
+      const sessionId = (options.sessionId && options.sessionId.trim()) || 'default';
       const timeout = options.timeout || 300000;
 
       // Validate timeout

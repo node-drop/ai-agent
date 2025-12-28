@@ -3,6 +3,19 @@
 ## [Unreleased]
 
 ### Added
+- **Human-in-the-Loop (HITL)** - New Ask Human Tool enables conversational confirmation and approval
+  - Added Ask Human Tool node for requesting human input
+  - Added ExecutionPauseManager for pause/resume functionality
+  - Added execution-resume API endpoints
+  - Integrated pause/resume logic into AI Agent loop
+  - Configurable timeouts and auto-approve/reject keywords
+  - Works with any chat interface (Chat, Telegram, WhatsApp, etc.)
+  - No UI alerts - everything happens in conversation
+  - Full state preservation during pause
+  - See `docs/HUMAN_IN_THE_LOOP.md` for detailed documentation
+  - See `QUICK_START_HITL.md` for quick start guide
+  - See `examples/human-in-the-loop-example.json` for example workflow
+
 - **Structured JSON Output with Schema** - New output format that forces the LLM to return data matching a JSON Schema
   - Added "Structured JSON (with Schema)" option to Output Format
   - Added Output Schema field for defining JSON Schema

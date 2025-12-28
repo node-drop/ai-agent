@@ -36,7 +36,7 @@ const WindowMemoryNode = {
   group: ['ai', 'memory'],
   version: 1,
   description: 'Store only the N most recent messages (service node)',
-  icon: 'fa:window-maximize',
+  icon: 'file:window-memory.svg',
   color: '#5CB85C',
   defaults: {
     name: 'Window Memory',
