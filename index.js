@@ -2,6 +2,8 @@
 module.exports = {
   nodes: {
     "aiAgent": require("./nodes/AIAgent.node.js"),
+    "supervisorAgent": require("./nodes/SupervisorAgent.node.js"),
+    "workerAgent": require("./nodes/WorkerAgent.node.js"),
     "openaiModel": require("./nodes/OpenAIModel.node.js"),
     "anthropicModel": require("./nodes/AnthropicModel.node.js"),
     "bufferMemory": require("./nodes/BufferMemory.node.js"),

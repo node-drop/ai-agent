@@ -234,8 +234,9 @@ const OpenAIModelNode = {
           }
           
           // Add tool_call_id if present (for tool response messages)
-          if (m.toolCallId) {
-            message.tool_call_id = m.toolCallId;
+          // Support both camelCase (toolCallId) and snake_case (tool_call_id)
+          if (m.toolCallId || m.tool_call_id) {
+            message.tool_call_id = m.toolCallId || m.tool_call_id;
           }
           
           return message;
